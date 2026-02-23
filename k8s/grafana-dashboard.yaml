@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: persons-finder-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  persons-finder.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "title": "HTTP Request Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [{
+            "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"persons-finder\"}[5m])) by (uri, method)",
+            "legendFormat": "{{ method }} {{ uri }}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "reqps" } }
+        },
+        {
+          "title": "Request Latency (p50 / p95 / p99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{namespace=\"persons-finder\"}[5m])) by (le))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"persons-finder\"}[5m])) by (le))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"persons-finder\"}[5m])) by (le))",
+              "legendFormat": "p99"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s" } }
+        },
+        {
+          "title": "JVM Heap Usage",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "jvm_memory_used_bytes{namespace=\"persons-finder\",area=\"heap\"}",
+              "legendFormat": "Used - {{ pod }}"
+            },
+            {
+              "expr": "jvm_memory_max_bytes{namespace=\"persons-finder\",area=\"heap\"}",
+              "legendFormat": "Max - {{ pod }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "bytes" } }
+        },
+        {
+          "title": "GC Pause Time",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [{
+            "expr": "rate(jvm_gc_pause_seconds_sum{namespace=\"persons-finder\"}[5m])",
+            "legendFormat": "{{ pod }} - {{ cause }}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "s" } }
+        },
+        {
+          "title": "Pod CPU Usage",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [{
+            "expr": "rate(container_cpu_usage_seconds_total{namespace=\"persons-finder\",container=\"persons-finder\"}[5m])",
+            "legendFormat": "{{ pod }}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "short" } }
+        },
+        {
+          "title": "Pod Memory Usage",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [{
+            "expr": "container_memory_working_set_bytes{namespace=\"persons-finder\",container=\"persons-finder\"}",
+            "legendFormat": "{{ pod }}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "bytes" } }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["persons-finder", "spring-boot"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "title": "Persons Finder",
+      "uid": "persons-finder"
+    }

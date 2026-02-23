@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: persons-finder
+  namespace: persons-finder
+  labels:
+    app: persons-finder
+spec:
+  groups:
+    - name: persons-finder.rules
+      rules:
+        - alert: PersonsFinderDown
+          expr: absent(up{job="persons-finder"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Persons Finder is down"
+            description: "No persons-finder instances have been up for 2 minutes."
+
+        - alert: HighRestartCount
+          expr: increase(kube_pod_container_status_restarts_total{namespace="persons-finder"}[15m]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod restarting frequently"
+            description: "Pod {{ $labels.pod }} restarted {{ $value }} times in 15 minutes."
+
+        - alert: HighErrorRate
+          expr: |
+            (
+              sum(rate(http_server_requests_seconds_count{namespace="persons-finder",status=~"5.."}[5m]))
+              /
+              sum(rate(http_server_requests_seconds_count{namespace="persons-finder"}[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High HTTP 5xx error rate"
+            description: "More than 5% of requests are returning 5xx errors."
+
+        - alert: HighMemoryUsage
+          expr: |
+            jvm_memory_used_bytes{namespace="persons-finder",area="heap"}
+            /
+            jvm_memory_max_bytes{namespace="persons-finder",area="heap"}
+            > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High JVM heap usage"
+            description: "JVM heap usage on {{ $labels.pod }} is above 80% for 10 minutes."

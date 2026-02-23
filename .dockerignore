@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.gradle
+build
+*.md
+!README.md
+LICENSE
+docker-compose*.yml
+terraform/
+k8s/
+.github/

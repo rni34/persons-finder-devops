@@ -19,6 +19,27 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# virtual machine crash logs
 hs_err_pid*
 replay_pid*
+
+# Gradle
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+
+# Terraform
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/tfplan
+terraform/.terraform.lock.hcl
+
+# Docker
+*.tar
+
+# OS
+.DS_Store
