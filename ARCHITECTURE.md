@@ -110,10 +110,24 @@ The sidecar has a separate network policy allowing egress to `api.openai.com:443
 | Approach | Pros | Cons |
 |----------|------|------|
 | **Sidecar proxy** (chosen) | No app code changes, per-pod isolation, simple deployment | Adds latency (~5-10ms), NER model uses memory |
+| **Amazon Bedrock Guardrails** | Managed PII filters, no ML model to maintain, supports BLOCK/ANONYMIZE modes, can call `ApplyGuardrail` API before forwarding to OpenAI | Adds AWS API dependency, requires Bedrock access, per-request cost |
+| **Amazon Comprehend** | Managed NER via `DetectPiiEntities` API, detects 30+ PII types, ~$0.0001/100 chars | External API call adds latency (~50-100ms), not in-cluster |
 | **Envoy filter (WASM)** | High performance, integrates with service mesh | Complex to develop, limited language support for WASM |
 | **Istio WASM plugin** | Centralized policy, mesh-wide | Heavy dependency (Istio), overkill for single service |
 | **Dedicated API gateway** | Centralized, reusable across services | Single point of failure, network hop, harder to enforce per-pod |
 | **Application-level middleware** | Lowest latency | Requires code changes, language-specific, easy to bypass |
+
+### Why Sidecar over AWS Managed Services?
+
+For this architecture, the sidecar approach was chosen because:
+1. **Data stays in-cluster** — PII never leaves the pod boundary, even for detection. With Comprehend/Bedrock, the PII would be sent to an AWS API for analysis (ironic — sending PII to detect PII).
+2. **No external dependency** — the sidecar works even if AWS APIs are down or throttled.
+3. **Lower latency** — in-process NER (~5-10ms) vs API call (~50-100ms).
+
+However, in a production evolution, a **hybrid approach** would be ideal:
+- Sidecar handles fast regex-based redaction (emails, SSNs, credit cards) in-line.
+- Amazon Comprehend or Bedrock Guardrails runs asynchronously as a second-pass audit to catch what regex missed (names, contextual PII).
+- Audit findings feed into CloudWatch alarms for compliance alerting.
 
 ## Trade-offs
 
