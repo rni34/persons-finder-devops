@@ -16,10 +16,13 @@ spec:
         app: persons-finder
     spec:
       serviceAccountName: persons-finder
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: tmp
           emptyDir: {}

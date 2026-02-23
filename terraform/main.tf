@@ -98,6 +98,9 @@ module "eks" {
   # Enable IRSA for service accounts (needed for ESO)
   enable_irsa = true
 
+  # Control plane logging for audit and security visibility
+  cluster_enabled_log_types = ["api", "audit", "authenticator"]
+
   eks_managed_node_groups = {
     default = {
       instance_types = [var.node_instance_type]
