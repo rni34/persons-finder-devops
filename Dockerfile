@@ -18,7 +18,7 @@ RUN ./gradlew build --no-daemon -x test \
 FROM eclipse-temurin:11.0.25_9-jre-jammy AS runtime
 
 # Security: non-root user
-RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser
+RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 

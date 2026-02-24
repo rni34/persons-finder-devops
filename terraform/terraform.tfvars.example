@@ -1,0 +1,14 @@
+# Copy this file to terraform.tfvars and customize for your environment.
+# terraform.tfvars is gitignored and will not be committed.
+
+region             = "us-east-1"
+cluster_name       = "persons-finder"
+cluster_version    = "1.29"
+node_instance_type = "t3.medium"
+node_desired_size  = 2
+node_min_size      = 1
+node_max_size      = 4
+
+# Sensitive — set via environment variable or prompt:
+#   export TF_VAR_grafana_admin_password="your-password"
+# grafana_admin_password = ""

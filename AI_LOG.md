@@ -202,6 +202,70 @@ A job using `anthropics/claude-code-security-review@main` that runs on every pus
 
 ---
 
+
+## 9. PII Redaction Architecture (ARCHITECTURE.md)
+
+### Prompt
+> "Design a PII redaction architecture for a Spring Boot app that sends user data to OpenAI. Include a sidecar proxy pattern, network enforcement, and an architectural diagram."
+
+### What AI Generated
+A basic sidecar proxy design with:
+- A generic "pii-redactor" sidecar container that intercepts traffic on localhost:9090
+- spaCy NER for name detection and regex for structured PII
+- A simple mermaid diagram showing app → sidecar → OpenAI flow
+- A NetworkPolicy snippet restricting egress
+- A brief alternatives table (sidecar vs Envoy vs gateway vs middleware)
+
+### Flaws Found
+1. **No specific tooling** — said "NER model (e.g., spaCy)" but didn't commit to a framework. No mention of Microsoft Presidio, which provides a production-ready pipeline combining regex + NER + custom recognizers + reversible anonymization.
+2. **No reversible tokenization** — described replacing PII with tokens like `[PERSON_a1b2c3]` but didn't explain how to reverse them. No encryption scheme, no per-request key management.
+3. **No network enforcement depth** — had a basic NetworkPolicy but didn't address that K8s NetworkPolicy operates at pod level (not per-container). No iptables init container for transparent interception. No Cilium FQDN-based egress policy.
+4. **No compliance context** — no mention of GDPR, CCPA, or NZ Privacy Act. No threat model. No explanation of why PII to external LLMs is a regulatory risk.
+5. **No audit/second-pass layer** — single point of failure. If the sidecar's NER misses a name, it goes straight to OpenAI. No async verification.
+6. **Didn't evaluate AWS-native alternatives properly** — mentioned Bedrock Guardrails and Comprehend briefly but didn't analyze Amazon Macie (which is S3-only and completely wrong for this use case) or the `ApplyGuardrail` standalone API.
+7. **No audit logging design** — no structured log format, no compliance mapping, no CloudWatch integration.
+8. **Shallow alternatives analysis** — listed 4 alternatives with one-line pros/cons. Didn't cover Portkey/LiteLLM gateways, LeakSignal WASM, NeMo Guardrails, or the Bedrock Guardrails + tokenization pattern.
+
+### Fixes Applied
+- **Chose Microsoft Presidio** as the concrete sidecar framework: AnalyzerEngine (regex + spaCy NER + custom recognizers) + AnonymizerEngine (AES-CBC reversible encryption). Included Python code showing the actual API.
+- **Added reversible tokenization** using Presidio's encrypt/decrypt operators with AES key from K8s Secret. Tokens are decrypted in the response flow.
+- **Three-layer network enforcement:** (1) K8s NetworkPolicy for baseline egress restriction, (2) iptables init container for transparent traffic interception (Istio-style, UID-based exclusion), (3) Cilium CiliumNetworkPolicy with `toFQDNs` for domain-level egress control.
+- **Added compliance context:** GDPR Art. 5 (data minimization), Art. 44 (transfer safeguards), CCPA §1798.100, NZ Privacy Act IPP 11. Full threat model with 5 threat categories.
+- **Added async Bedrock Guardrails audit layer:** 10% sampling of raw requests → CloudWatch Logs → Lambda → `ApplyGuardrail` API → CloudWatch Alarms for missed PII detection.
+- **Explicitly analyzed and rejected Amazon Macie** — documented that it's S3-only, batch/scheduled, has no inline API, and cannot intercept HTTP request bodies.
+- **Added structured audit logging:** JSON format with entity type, SHA-256 hash (never raw PII), position, and timing. Fluent Bit shipping to CloudWatch. SOC 2 compliance mapping table.
+- **Expanded alternatives to 9 approaches:** Presidio sidecar, Bedrock Guardrails, Comprehend, Macie, NeMo Guardrails, Portkey/LiteLLM, LeakSignal WASM, Envoy ext_proc, application middleware. Full comparison matrix with latency, cost, reversibility, and verdict.
+
+---
+
+
+## 10. Post-Audit Hardening (Second Pass)
+
+After completing all deliverables, a full repo audit was performed. This uncovered 8 additional issues across the existing AI-generated artifacts that were missed in the initial review.
+
+### Flaws Found
+1. **Dockerfile UID mismatch** — `useradd -r` allocates a system UID (100-999 range) but the Deployment hardcodes `runAsUser: 1000`. Files owned by the container user wouldn't match the runtime UID.
+2. **Ingress HTTP-only** — no TLS/HTTPS. For a PII-handling app, serving traffic over plain HTTP is a security gap visible to any reviewer.
+3. **No PodDisruptionBudget** — with `minReplicas: 2` in HPA, a node drain could evict both pods simultaneously. No availability guarantee during cluster operations.
+4. **ESO operator never installed** — IRSA role, SecretStore, and ExternalSecret all existed, but the External Secrets Operator Helm release was missing from Terraform. The entire secrets pipeline was broken.
+5. **CI pushes `latest` tag to IMMUTABLE ECR** — the pipeline tagged images with both `$SHA` and `latest`, but the ECR repo has `image_tag_mutability = "IMMUTABLE"`. The second push of `latest` would fail after the first successful build.
+6. **No ECR lifecycle policy** — images accumulate indefinitely with no cleanup. Storage costs grow unbounded.
+7. **ServiceMonitor redundant field** — had both `port: http` and `targetPort: 8080`. The `port` field referencing the Service port name is sufficient.
+8. **NetworkPolicy too permissive with no documentation** — allowed HTTPS to any IP with no comment explaining that standard K8s NetworkPolicy cannot do FQDN-based restriction.
+
+### Fixes Applied
+- Fixed Dockerfile: `useradd -r -g appgroup -u 1000` to explicitly match Deployment `runAsUser: 1000`.
+- Added HTTPS to Ingress: ACM certificate annotation, HTTP→HTTPS redirect (`ssl-redirect: "443"`), TLS 1.3 policy (`ELBSecurityPolicy-TLS13-1-2-2021-06`).
+- Created `k8s/pdb.yaml` with `minAvailable: 1`.
+- Added ESO Helm release to `terraform/addons.tf` with IRSA service account annotation.
+- Removed `latest` tag from CI `push-image` job. Now pushes only SHA-tagged immutable images.
+- Added `aws_ecr_lifecycle_policy` to keep last 30 images.
+- Removed redundant `targetPort: 8080` from ServiceMonitor.
+- Added comments to NetworkPolicy documenting FQDN limitation and pointing to ARCHITECTURE.md Cilium section.
+- Added `terraform/terraform.tfvars.example` and `.github/CODEOWNERS`.
+
+---
+
 ## Summary
 
 | Deliverable | AI Flaws Found | Critical Fixes |
@@ -214,7 +278,9 @@ A job using `anthropics/claude-code-security-review@main` that runs on every pus
 | Observability | 5 | Cross-namespace discovery, Grafana password variable, retention, dashboard sidecar, port naming |
 | EKS Add-ons | 4 | IRSA for LB controller, scoped IAM, provider auth via exec, metrics-server for HPA |
 | Claude Security Review | 3 | PR-only trigger, directory exclusions, complements Trivy |
+| ARCHITECTURE.md | 8 | Presidio sidecar, Bedrock Guardrails audit, Cilium FQDN, compliance context, Macie rejection |
+| Post-Audit Hardening | 8 | UID mismatch, HTTPS ingress, PDB, ESO operator, ECR immutable/latest conflict, lifecycle policy |
 
-**Total: 42 flaws identified and fixed across 8 deliverables.**
+**Total: 58 flaws identified and fixed across 10 deliverables.**
 
 Every AI-generated artifact required significant security hardening before it was production-ready. The pattern was consistent: AI produces functional but insecure defaults. The engineer's job is to apply defense-in-depth, least-privilege, and operational best practices.

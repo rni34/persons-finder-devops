@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: persons-finder
+  namespace: persons-finder
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: persons-finder

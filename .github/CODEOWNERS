@@ -1,0 +1,6 @@
+# Require review for infrastructure and security-sensitive files
+terraform/       @hakunishikawa
+k8s/             @hakunishikawa
+.github/         @hakunishikawa
+Dockerfile       @hakunishikawa
+ARCHITECTURE.md  @hakunishikawa

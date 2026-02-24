@@ -31,6 +31,10 @@ spec:
         - port: 53
           protocol: TCP
     # Allow HTTPS outbound (OpenAI API, Secrets Manager)
+    # NOTE: Standard K8s NetworkPolicy cannot restrict egress by FQDN/domain name,
+    # only by IP/CIDR. This rule allows HTTPS to ANY IP — it is intentionally broad
+    # as a baseline. For FQDN-based egress restriction (e.g., only api.openai.com),
+    # use Cilium CiliumNetworkPolicy with toFQDNs. See ARCHITECTURE.md section 6c.
     - ports:
         - port: 443
           protocol: TCP

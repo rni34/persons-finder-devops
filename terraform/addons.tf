@@ -142,3 +142,31 @@ resource "helm_release" "lb_controller" {
 
   depends_on = [module.eks, module.lb_controller_irsa]
 }
+
+# ---------- External Secrets Operator ----------
+resource "helm_release" "external_secrets" {
+  name       = "external-secrets"
+  repository = "https://charts.external-secrets.io"
+  chart      = "external-secrets"
+  namespace  = "external-secrets"
+  version    = "0.9.13"
+
+  create_namespace = true
+
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "external-secrets-sa"
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.eso_irsa.iam_role_arn
+  }
+
+  depends_on = [module.eks, module.eso_irsa]
+}
