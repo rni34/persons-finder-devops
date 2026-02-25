@@ -5,6 +5,9 @@ metadata:
   namespace: persons-finder
   labels:
     app: persons-finder
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: persons-finder
 spec:
   selector:
     matchLabels:

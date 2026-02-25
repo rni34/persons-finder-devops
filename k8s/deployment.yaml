@@ -5,6 +5,12 @@ metadata:
   namespace: persons-finder
   labels:
     app: persons-finder
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/instance: persons-finder
+    app.kubernetes.io/version: 0.0.1-SNAPSHOT
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: persons-finder
+    app.kubernetes.io/managed-by: kubectl
 spec:
   # replicas managed by HPA — do not set here to avoid conflicts
   selector:
@@ -19,6 +25,10 @@ spec:
     metadata:
       labels:
         app: persons-finder
+        app.kubernetes.io/name: persons-finder
+        app.kubernetes.io/instance: persons-finder
+        app.kubernetes.io/version: 0.0.1-SNAPSHOT
+        app.kubernetes.io/component: api
     spec:
       serviceAccountName: persons-finder
       automountServiceAccountToken: false
@@ -101,3 +111,7 @@ kind: ServiceAccount
 metadata:
   name: persons-finder
   namespace: persons-finder
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: persons-finder

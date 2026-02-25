@@ -3,6 +3,10 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: persons-finder
   namespace: persons-finder
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: persons-finder
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

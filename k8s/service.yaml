@@ -5,6 +5,10 @@ metadata:
   namespace: persons-finder
   labels:
     app: persons-finder
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/instance: persons-finder
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: persons-finder
 spec:
   type: ClusterIP
   selector:

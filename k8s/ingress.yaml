@@ -3,6 +3,10 @@ kind: Ingress
 metadata:
   name: persons-finder
   namespace: persons-finder
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: persons-finder
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip

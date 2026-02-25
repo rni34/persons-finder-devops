@@ -3,6 +3,10 @@ kind: NetworkPolicy
 metadata:
   name: persons-finder
   namespace: persons-finder
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: network
+    app.kubernetes.io/part-of: persons-finder
 spec:
   podSelector:
     matchLabels:
