@@ -54,7 +54,7 @@ spec:
         - name: persons-finder
           # Replace with your ECR image URI — CI pushes SHA-tagged images:
           #   <account>.dkr.ecr.<region>.amazonaws.com/persons-finder:<git-sha>
-          image: 637423556985.dkr.ecr.us-east-1.amazonaws.com/persons-finder:latest
+          image: 637423556985.dkr.ecr.us-east-1.amazonaws.com/persons-finder:e4c6e45
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
