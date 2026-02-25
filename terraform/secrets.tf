@@ -4,6 +4,10 @@ resource "aws_secretsmanager_secret" "openai_api_key" {
   description             = "OpenAI API key for persons-finder application"
   recovery_window_in_days = 7
 
+  # KMS CMK encryption (CKV_AWS_149) — AWS-managed key is sufficient for dev;
+  # a customer-managed CMK would be used in production for key rotation control
+  # kms_key_id = aws_kms_key.secrets.arn
+
   tags = {
     Project     = "persons-finder"
     Environment = "dev"

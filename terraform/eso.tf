@@ -53,6 +53,11 @@ resource "aws_ecr_repository" "app" {
     scan_on_push = true
   }
 
+  # KMS encryption for images at rest (CKV_AWS_136)
+  encryption_configuration {
+    encryption_type = "KMS"
+  }
+
   tags = {
     Project     = "persons-finder"
     Environment = "dev"
