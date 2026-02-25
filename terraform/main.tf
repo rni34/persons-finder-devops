@@ -101,12 +101,24 @@ module "eks" {
   # Control plane logging for audit and security visibility
   cluster_enabled_log_types = ["api", "audit", "authenticator"]
 
+  # Envelope encryption for Kubernetes secrets at rest
+  cluster_encryption_config = {
+    resources = ["secrets"]
+  }
+
   eks_managed_node_groups = {
     default = {
       instance_types = [var.node_instance_type]
       min_size       = var.node_min_size
       max_size       = var.node_max_size
       desired_size   = var.node_desired_size
+
+      # IMDSv2 required — prevents pods from accessing node metadata (EKS best practice)
+      metadata_options = {
+        http_endpoint               = "enabled"
+        http_tokens                 = "required"
+        http_put_response_hop_limit = 1
+      }
 
       labels = {
         role = "general"
