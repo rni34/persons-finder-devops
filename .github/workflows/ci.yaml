@@ -94,6 +94,31 @@ jobs:
           exit-code: "0"
           severity: CRITICAL,HIGH
 
+  # ---------- Terraform Validation ----------
+  terraform-validate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+
+      - name: Terraform Init (no backend)
+        run: terraform init -backend=false
+        working-directory: terraform
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: terraform
+
   # ---------- AI Security Review (Claude Code) ----------
   # Requires CLAUDE_API_KEY secret. See: https://github.com/anthropics/claude-code-security-review
   ai-security-review:
