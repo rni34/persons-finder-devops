@@ -12,3 +12,6 @@ These additional references should also help you:
 
 * [Gradle Build Scans – insights for your project's build](https://scans.gradle.com#gradle)
 
+### Note on Spring Boot Version
+
+This project uses **Spring Boot 2.7.0**, which reached end of commercial support in November 2023. For production use, consider upgrading to Spring Boot 3.x (requires Java 17+). The current version is sufficient for this DevOps challenge as the focus is on infrastructure, not application code.
