@@ -1,0 +1,171 @@
+{
+  "id": null,
+  "uid": "persons-finder",
+  "title": "Persons Finder",
+  "description": "Spring Boot application metrics — request rates, latency, JVM, pod resources, and error tracking",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "tags": ["persons-finder", "spring-boot", "eks"],
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "constant",
+        "query": "persons-finder",
+        "current": { "text": "persons-finder", "value": "persons-finder" },
+        "hide": 0,
+        "label": "Namespace"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\"}[5m])) by (uri, method)",
+        "legendFormat": "{{ method }} {{ uri }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "title": "Request Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{namespace=\"$namespace\"}[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"$namespace\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"$namespace\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "HTTP Error Rate (5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\",status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx errors/sec"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\",status=~\"4..\"}[5m]))",
+          "legendFormat": "4xx errors/sec"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20 } } }
+    },
+    {
+      "title": "HTTP Status Code Breakdown",
+      "type": "piechart",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 7 },
+      "targets": [{
+        "expr": "sum(increase(http_server_requests_seconds_count{namespace=\"$namespace\"}[1h])) by (status)",
+        "legendFormat": "{{ status }}"
+      }],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "title": "Total Requests (24h)",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 4, "x": 8, "y": 7 },
+      "targets": [{
+        "expr": "sum(increase(http_server_requests_seconds_count{namespace=\"$namespace\"}[24h]))",
+        "legendFormat": "Total"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Pod Restart Count",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 4, "x": 12, "y": 7 },
+      "targets": [{
+        "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"$namespace\"})",
+        "legendFormat": "Restarts"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}] } } }
+    },
+    {
+      "title": "Pod Restart Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 7 },
+      "targets": [{
+        "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\"}[15m])",
+        "legendFormat": "{{ pod }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "JVM Heap Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{namespace=\"$namespace\",area=\"heap\"}",
+          "legendFormat": "Used - {{ pod }}"
+        },
+        {
+          "expr": "jvm_memory_max_bytes{namespace=\"$namespace\",area=\"heap\"}",
+          "legendFormat": "Max - {{ pod }}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "GC Pause Time",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 14 },
+      "targets": [{
+        "expr": "rate(jvm_gc_pause_seconds_sum{namespace=\"$namespace\"}[5m])",
+        "legendFormat": "{{ pod }} - {{ cause }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "JVM Threads",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 14 },
+      "targets": [{
+        "expr": "jvm_threads_live_threads{namespace=\"$namespace\"}",
+        "legendFormat": "{{ pod }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Pod CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 21 },
+      "targets": [{
+        "expr": "rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",container=\"persons-finder\"}[5m])",
+        "legendFormat": "{{ pod }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Pod Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 21 },
+      "targets": [{
+        "expr": "container_memory_working_set_bytes{namespace=\"$namespace\",container=\"persons-finder\"}",
+        "legendFormat": "{{ pod }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    }
+  ],
+  "schemaVersion": 39,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s"
+}

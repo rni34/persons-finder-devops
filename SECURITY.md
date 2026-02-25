@@ -25,7 +25,7 @@ See `ARCHITECTURE.md` for the full design, threat model, and compliance mapping.
 
 | Control | Implementation |
 |---|---|
-| Non-root user | `runAsUser: 1000`, `runAsNonRoot: true` |
+| Non-root user | `runAsUser: 1000`, `runAsGroup: 1000`, `runAsNonRoot: true` |
 | Read-only filesystem | `readOnlyRootFilesystem: true` + `/tmp` emptyDir |
 | No privilege escalation | `allowPrivilegeEscalation: false` |
 | Minimal capabilities | `drop: ["ALL"]` |
