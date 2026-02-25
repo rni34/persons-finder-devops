@@ -68,7 +68,7 @@ jobs:
           retention-days: 1
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           image-ref: persons-finder:scan
           format: table
@@ -77,7 +77,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Trivy Terraform scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           scan-type: config
           scan-ref: terraform/
@@ -86,7 +86,7 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Trivy Kubernetes scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           scan-type: config
           scan-ref: k8s/

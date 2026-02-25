@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Local observability stack for persons-finder development.
 # Usage: docker compose -f docker-compose.observability.yml up -d
 # Requires: the app running on localhost:8080 with actuator/prometheus enabled.
