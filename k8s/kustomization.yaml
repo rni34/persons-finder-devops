@@ -10,6 +10,7 @@ resources:
   # 2. Secrets and service accounts
   - external-secret.yaml
   # 3. Workloads
+  - priority-class.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml

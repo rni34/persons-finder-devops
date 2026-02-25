@@ -79,6 +79,8 @@ module "vpc" {
   tags = {
     Project     = "persons-finder"
     Environment = "dev"
+    CostCenter  = "devops-challenge"
+    ManagedBy   = "terraform"
   }
 }
 
@@ -132,5 +134,7 @@ module "eks" {
   tags = {
     Project     = "persons-finder"
     Environment = "dev"
+    CostCenter  = "devops-challenge"
+    ManagedBy   = "terraform"
   }
 }

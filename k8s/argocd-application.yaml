@@ -1,0 +1,36 @@
+# ArgoCD Application — GitOps deployment for persons-finder
+# Requires ArgoCD installed in the cluster (argocd namespace).
+# This manifest tells ArgoCD to sync K8s resources from this repo's k8s/ directory.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: persons-finder
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/part-of: persons-finder
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hakunishikawa/persons-finder-devops.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: persons-finder
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

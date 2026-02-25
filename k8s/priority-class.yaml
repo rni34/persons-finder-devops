@@ -1,0 +1,12 @@
+# PriorityClass — ensures persons-finder pods are not evicted by lower-priority workloads
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: persons-finder-high
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/part-of: persons-finder
+description: "High priority for persons-finder application pods"
+value: 100000
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false

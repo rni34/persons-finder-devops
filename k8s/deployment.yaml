@@ -32,6 +32,7 @@ spec:
     spec:
       serviceAccountName: persons-finder
       automountServiceAccountToken: false
+      priorityClassName: persons-finder-high
       terminationGracePeriodSeconds: 45  # 10s preStop + 30s graceful shutdown + 5s buffer
       securityContext:
         runAsNonRoot: true
