@@ -47,9 +47,9 @@ We use a two-layer architecture:
 
 1. **Layer 1 — Presidio Sidecar (hot path):** An in-cluster sidecar container running Microsoft Presidio intercepts all outbound LLM traffic, detects PII via regex + NER, replaces it with reversible tokens, and restores original values in the response. PII never leaves the pod.
 
-2. **Layer 2 — Bedrock Guardrails Audit (async):** A sample of pre-redaction request bodies are logged to CloudWatch. A Lambda function calls the Bedrock Guardrails `ApplyGuardrail` API to detect any PII the sidecar missed. Findings trigger CloudWatch alarms for compliance alerting.
+2. **Layer 2 — Network Enforcement:** A sample of pre-redaction request bodies are logged to CloudWatch. A Lambda function calls the Bedrock Guardrails `ApplyGuardrail` API to detect any PII the sidecar missed. Findings trigger CloudWatch alarms for compliance alerting.
 
-3. **Layer 3 — Network Enforcement:** Kubernetes NetworkPolicy + iptables init container + Cilium FQDN policies ensure the app container physically cannot bypass the sidecar to reach external endpoints.
+3. **Layer 3 — Bedrock Guardrails Audit (async):** A sample of pre-redaction request bodies are logged to CloudWatch. A Lambda function calls the Bedrock Guardrails `ApplyGuardrail` API to detect any PII the sidecar missed. Findings trigger CloudWatch alarms for compliance alerting.
 
 ```mermaid
 flowchart LR

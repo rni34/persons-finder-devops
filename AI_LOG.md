@@ -266,6 +266,75 @@ After completing all deliverables, a full repo audit was performed. This uncover
 
 ---
 
+## 11. Final Hardening Pass (Deep Audit + Competitive Analysis)
+
+A comprehensive audit was performed by comparing the repo against 4 other challenge submissions (vincesesto, viveksuresh, hualaw, yuankui) and researching Kubernetes/Docker/CI best practices. This uncovered 24 issues.
+
+### Flaws Found
+
+**Critical:**
+1. **Dockerfile HEALTHCHECK uses `curl`** — `curl` is not installed in `eclipse-temurin:11-jre-jammy`. The HEALTHCHECK silently failed every time. Redundant anyway since K8s startup/liveness/readiness probes handle health checking.
+2. **`replicas: 2` in Deployment conflicts with HPA** — HPA has `minReplicas: 2` and manages scaling. But the Deployment hardcodes `replicas: 2`, so every `kubectl apply` resets the count even if HPA had scaled to 5.
+3. **`.terraform.lock.hcl` gitignored** — HashiCorp recommends committing the lock file for reproducible provider installs across team members and CI.
+4. **`.idea/` tracked in git** — Was committed before `.gitignore` entry was added. Still tracked despite gitignore.
+
+**Security:**
+5. **All GitHub Actions pinned to tags, not SHAs** — Tags are mutable (can be rewritten). `claude-code-security-review@main` was the worst — pinned to a branch with zero releases. Any commit to that repo changes what runs in CI.
+6. **LB controller IAM has `elasticloadbalancing:*`** — Wildcard grants all ELB actions. Should list specific actions needed by the controller.
+7. **Duplicate `ec2:DescribeAvailabilityZones`** — Listed twice in the same IAM policy statement.
+
+**K8s Deployment:**
+8. **No `terminationGracePeriodSeconds`** — Defaults to 30s. With `preStop` sleep 10s + Spring graceful shutdown 30s = 40s needed. K8s would SIGKILL before Spring finishes.
+9. **No `preStop` lifecycle hook** — No time for ALB to drain connections before SIGTERM.
+10. **No `topologySpreadConstraints`** — Pods could land on the same node, defeating HA.
+11. **No explicit rolling update strategy** — Should be `maxSurge: 1, maxUnavailable: 0` for zero-downtime deploys.
+12. **Container port missing `name: http`** — Service and ServiceMonitor reference by name; container port should match.
+13. **No `server.shutdown=graceful`** — Spring Boot won't wait for in-flight requests on SIGTERM.
+14. **No HPA `scaleUp` behavior** — Only `scaleDown` was defined. No stabilization for scale-up events.
+15. **Deprecated `kubernetes.io/ingress.class` annotation** — Deprecated since K8s 1.18. Should use `spec.ingressClassName`.
+
+**Dockerfile:**
+16. **No `dumb-init`** — JVM as PID 1 may ignore SIGTERM signals. `dumb-init` wraps the JVM for proper signal forwarding.
+17. **No JVM tuning flags** — Without `-XX:MaxRAMPercentage`, JVM ignores container memory limits and may OOM.
+18. **No OCI image labels** — No traceability metadata (`org.opencontainers.image.*`).
+
+**Docs/Polish:**
+19. **ARCHITECTURE.md layer numbering mismatch** — Overview (§4) said L2=Bedrock, L3=Network but detail sections had §6=Network, §7=Bedrock.
+20. **Grafana dashboard unprofessional comment** — `#This is extra for monitoring the persons-finder app`.
+21. **HELP.md references Spring Boot 3.0.6** — Project uses 2.7.0.
+22. **CI builds Docker image twice** — Once in `security-scan`, once in `push-image`. Same code, wasted ~2-3 min CI time.
+
+**Missing files:**
+23. **No SECURITY.md** — Both backend forks (hualaw, yuankui) had one.
+24. **No Terraform remote state backend** — No S3 backend config for team/CI reproducibility.
+
+### Fixes Applied
+- Removed broken HEALTHCHECK; K8s probes are sufficient.
+- Removed `replicas: 2` from Deployment; HPA owns replica count.
+- Un-gitignored `.terraform.lock.hcl` and committed it.
+- Untracked `.idea/` with `git rm -r --cached`.
+- Pinned all 7 GitHub Actions to full-length commit SHAs (with version comments).
+- Replaced `elasticloadbalancing:*` with 34 specific actions; removed duplicate `DescribeAvailabilityZones`.
+- Added `terminationGracePeriodSeconds: 45` (10s preStop + 30s graceful + 5s buffer).
+- Added `preStop` lifecycle hook (`sleep 10` for connection draining).
+- Added `topologySpreadConstraints` (hostname, DoNotSchedule).
+- Added `strategy: RollingUpdate` (maxSurge:1, maxUnavailable:0).
+- Added `name: http` to container port.
+- Added `server.shutdown=graceful` + `spring.lifecycle.timeout-per-shutdown-phase=30s`.
+- Added HPA `scaleUp` behavior (stabilization 60s, max of 2 pods or 50% per 60s).
+- Replaced deprecated `kubernetes.io/ingress.class` annotation with `spec.ingressClassName: alb`.
+- Added `dumb-init` for PID 1 signal handling.
+- Added JVM tuning: `-XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=25.0`.
+- Added 5 OCI image labels.
+- Fixed ARCHITECTURE.md layer numbering (overview now matches detail sections).
+- Fixed grafana dashboard comment.
+- Fixed HELP.md Spring Boot version (3.0.6 → 2.7.0).
+- Fixed CI double Docker build: build once in security-scan, share via artifact, retag in push-image.
+- Created SECURITY.md (secrets, PII, container hardening, scanning, supply chain).
+- Created `terraform/backend.tf` with commented S3+DynamoDB backend config.
+
+---
+
 ## Summary
 
 | Deliverable | AI Flaws Found | Critical Fixes |
@@ -280,7 +349,8 @@ After completing all deliverables, a full repo audit was performed. This uncover
 | Claude Security Review | 3 | PR-only trigger, directory exclusions, complements Trivy |
 | ARCHITECTURE.md | 8 | Presidio sidecar, Bedrock Guardrails audit, Cilium FQDN, compliance context, Macie rejection |
 | Post-Audit Hardening | 8 | UID mismatch, HTTPS ingress, PDB, ESO operator, ECR immutable/latest conflict, lifecycle policy |
+| Final Hardening Pass | 24 | Broken HEALTHCHECK, replicas/HPA conflict, SHA pinning, dumb-init, JVM tuning, graceful shutdown, topology spread, rolling update, preStop hook, IAM wildcard, SECURITY.md |
 
-**Total: 58 flaws identified and fixed across 10 deliverables.**
+**Total: 82 flaws identified and fixed across 11 deliverables.**
 
 Every AI-generated artifact required significant security hardening before it was production-ready. The pattern was consistent: AI produces functional but insecure defaults. The engineer's job is to apply defense-in-depth, least-privilege, and operational best practices.

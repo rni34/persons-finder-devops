@@ -17,6 +17,17 @@ RUN ./gradlew build --no-daemon -x test \
 # ---- Stage 2: Runtime ----
 FROM eclipse-temurin:11.0.25_9-jre-jammy AS runtime
 
+# OCI image labels for traceability
+LABEL org.opencontainers.image.title="Persons Finder"
+LABEL org.opencontainers.image.description="Persons Finder API — Spring Boot on EKS"
+LABEL org.opencontainers.image.version="0.0.1-SNAPSHOT"
+LABEL org.opencontainers.image.source="https://github.com/hakunishikawa/persons-finder-devops"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# Install dumb-init for proper PID 1 signal handling
+RUN apt-get update && apt-get install -y --no-install-recommends dumb-init \
+    && rm -rf /var/lib/apt/lists/*
+
 # Security: non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 -d /app -s /sbin/nologin appuser
 
@@ -35,7 +46,9 @@ USER appuser
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health/liveness || exit 1
-
-ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]
+# dumb-init wraps the JVM for proper SIGTERM forwarding
+# JVM tuning: MaxRAMPercentage/InitialRAMPercentage for container-aware memory sizing
+ENTRYPOINT ["dumb-init", "--", "java", \
+    "-XX:MaxRAMPercentage=75.0", \
+    "-XX:InitialRAMPercentage=25.0", \
+    "org.springframework.boot.loader.JarLauncher"]

@@ -1,4 +1,4 @@
-#This is extra for monitoring the persons-finder app
+# Grafana dashboard for persons-finder — auto-loaded via sidecar (grafana_dashboard label)
 apiVersion: v1
 kind: ConfigMap
 metadata:

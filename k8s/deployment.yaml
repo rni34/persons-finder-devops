@@ -6,10 +6,15 @@ metadata:
   labels:
     app: persons-finder
 spec:
-  replicas: 2
+  # replicas managed by HPA — do not set here to avoid conflicts
   selector:
     matchLabels:
       app: persons-finder
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -17,12 +22,20 @@ spec:
     spec:
       serviceAccountName: persons-finder
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45  # 10s preStop + 30s graceful shutdown + 5s buffer
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: persons-finder
       volumes:
         - name: tmp
           emptyDir: {}
@@ -30,7 +43,8 @@ spec:
         - name: persons-finder
           image: 637423556985.dkr.ecr.us-east-1.amazonaws.com/persons-finder:v3-observability
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
               protocol: TCP
           env:
             - name: OPENAI_API_KEY
@@ -47,23 +61,27 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: http
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 12
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: http
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8080
+              port: http
             periodSeconds: 5
             failureThreshold: 3
           resources:
