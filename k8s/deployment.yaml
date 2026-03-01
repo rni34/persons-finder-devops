@@ -29,6 +29,7 @@ spec:
         app.kubernetes.io/instance: persons-finder
         app.kubernetes.io/version: 0.0.1-SNAPSHOT
         app.kubernetes.io/component: api
+        data-classification: pii
     spec:
       serviceAccountName: persons-finder
       automountServiceAccountToken: false
@@ -37,10 +38,30 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      # Reduce pod eviction timeout from default 300s to 60s for AZ failures.
+      # Stateless API has no local state to preserve — faster eviction means
+      # faster rescheduling to healthy AZs. Default 5min gap leaves pods on
+      # unreachable nodes while ALB health checks already route traffic away.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
       topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: persons-finder
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
@@ -60,12 +81,20 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: management
+              containerPort: 8081
+              protocol: TCP
           env:
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: openai-secret
                   key: OPENAI_API_KEY
+            # Serve actuator on a separate port so /actuator/prometheus, /actuator/health,
+            # /actuator/info are NOT reachable via the internet-facing ALB on port 8080.
+            # Only kubelet probes and Prometheus (internal) access port 8081.
+            - name: MANAGEMENT_SERVER_PORT
+              value: "8081"
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -78,33 +107,39 @@ spec:
               mountPath: /tmp
           lifecycle:
             preStop:
-              exec:
-                command: ["/bin/sh", "-c", "sleep 10"]
+              sleep:
+                seconds: 10
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: http
+              port: management
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: 12
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: http
+              port: management
             periodSeconds: 10
+            timeoutSeconds: 3
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: http
+              port: management
             periodSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: 3
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
-              cpu: "1"
+              # CPU limit intentionally omitted — CFS throttling causes latency
+              # spikes during JIT compilation and GC pauses on JVM workloads.
+              # CPU request (250m) ensures proper scheduling; LimitRange min
+              # prevents BestEffort pods. See: k8s.io/docs/concepts/configuration
               memory: 1Gi
 ---
 apiVersion: v1

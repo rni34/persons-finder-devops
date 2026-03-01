@@ -43,11 +43,11 @@ The safest architectural position: **never send real PII in the first place.** R
 
 ## 4. Solution Overview: Hybrid Defense-in-Depth
 
-We use a two-layer architecture:
+We use a three-layer defense-in-depth architecture:
 
 1. **Layer 1 — Presidio Sidecar (hot path):** An in-cluster sidecar container running Microsoft Presidio intercepts all outbound LLM traffic, detects PII via regex + NER, replaces it with reversible tokens, and restores original values in the response. PII never leaves the pod.
 
-2. **Layer 2 — Network Enforcement:** A sample of pre-redaction request bodies are logged to CloudWatch. A Lambda function calls the Bedrock Guardrails `ApplyGuardrail` API to detect any PII the sidecar missed. Findings trigger CloudWatch alarms for compliance alerting.
+2. **Layer 2 — Network Enforcement:** Kubernetes NetworkPolicy restricts pod egress to DNS + HTTPS only. An iptables init container transparently redirects the app's outbound :443 traffic to the sidecar's proxy port, making bypass impossible. Cilium FQDN-based egress policy (if available) further restricts destinations to `api.openai.com` only.
 
 3. **Layer 3 — Bedrock Guardrails Audit (async):** A sample of pre-redaction request bodies are logged to CloudWatch. A Lambda function calls the Bedrock Guardrails `ApplyGuardrail` API to detect any PII the sidecar missed. Findings trigger CloudWatch alarms for compliance alerting.
 
@@ -64,7 +64,7 @@ flowchart LR
         Cilium["CiliumNetworkPolicy<br/>toFQDNs: api.openai.com"]
     end
 
-    subgraph AuditLayer["Async Audit Layer (Layer 2)"]
+    subgraph AuditLayer["Async Audit Layer (Layer 3)"]
         CWL["CloudWatch Logs"]
         Lambda["Lambda"]
         BG["Bedrock Guardrails<br/>ApplyGuardrail API"]
@@ -208,7 +208,7 @@ containers:
       - name: LOG_REDACTED
         value: "true"
       - name: AUDIT_SAMPLE_RATE
-        value: "0.1"  # log 10% of raw requests for Layer 2 audit
+        value: "0.1"  # log 10% of raw requests for Layer 3 audit
     securityContext:
       runAsUser: 1337          # matches iptables exclusion UID
       runAsNonRoot: true
@@ -282,8 +282,15 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # DNS resolution
-    - ports:
+    # DNS — restricted to CoreDNS pods only (prevents DNS tunneling exfiltration)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
         - port: 53
           protocol: UDP
         - port: 53
@@ -420,7 +427,7 @@ if response["action"] == "ANONYMIZED":
 | Approach | Latency | PII Leaves Pod? | Reversible? | Cost | Verdict |
 |---|---|---|---|---|---|
 | **Presidio sidecar** (chosen — Layer 1) | ~5-10ms | ❌ No — in-cluster NER | ✅ AES encrypt/decrypt | Open source, ~256Mi memory | ✅ Primary approach |
-| **Bedrock Guardrails `ApplyGuardrail`** (chosen — Layer 2) | ~30-80ms | ⚠️ Yes — AWS API call | ✅ With tokenization service | $0.75/1K text units | ✅ Async audit layer |
+| **Bedrock Guardrails `ApplyGuardrail`** (chosen — Layer 3) | ~30-80ms | ⚠️ Yes — AWS API call | ✅ With tokenization service | $0.75/1K text units | ✅ Async audit layer |
 | **Amazon Comprehend `DetectPiiEntities`** | ~50-100ms | ⚠️ Yes — AWS API call | ❌ Detection only, no anonymization | ~$0.0001/100 chars | ⚠️ Viable but older, less integrated |
 | **Amazon Macie** | N/A — batch only | N/A | ❌ | Per-bucket pricing | ❌ **Wrong tool.** S3-only, scans objects at rest. No API for inline text scanning. Cannot intercept HTTP request bodies. |
 | **NVIDIA NeMo Guardrails** | ~10-50ms | ❌ Self-hosted | ❌ Detection + blocking only | Open source, needs GPU (T4+) | ⚠️ Overkill — designed for dialog management, not just PII |
@@ -441,7 +448,7 @@ Using Macie for this problem would be like using a fire alarm to prevent fires �
 
 ### Why Presidio Over Comprehend/Bedrock as Primary?
 
-The fundamental tension: **to detect PII with a cloud API, you must first send the PII to that cloud API.** This is acceptable for an audit layer (Layer 2) but not for the primary defense (Layer 1).
+The fundamental tension: **to detect PII with a cloud API, you must first send the PII to that cloud API.** This is acceptable for an audit layer (Layer 3) but not for the primary defense (Layer 1).
 
 Presidio runs entirely in-cluster. The PII never leaves the pod boundary, even for detection. This is the strongest privacy guarantee and the most defensible position for compliance.
 
@@ -473,7 +480,7 @@ The sidecar logs every redaction event (original values are **never** logged —
 - Sidecar writes structured JSON logs to stdout.
 - Fluent Bit (DaemonSet) ships logs to CloudWatch Logs.
 - Redaction audit logs go to a dedicated log group: `/persons-finder/pii-redaction-audit`.
-- Raw pre-redaction samples (Layer 2) go to an encrypted log group with 7-day retention: `/persons-finder/pii-audit-raw` (KMS-encrypted, restricted IAM access).
+- Raw pre-redaction samples (Layer 3) go to an encrypted log group with 7-day retention: `/persons-finder/pii-audit-raw` (KMS-encrypted, restricted IAM access).
 
 ### Compliance Mapping
 

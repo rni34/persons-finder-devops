@@ -15,6 +15,11 @@ resource "aws_iam_policy" "eso_secrets_access" {
           "secretsmanager:DescribeSecret"
         ]
         Resource = aws_secretsmanager_secret.openai_api_key.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = aws_kms_key.secrets.arn
       }
     ]
   })
@@ -37,11 +42,6 @@ module "eso_irsa" {
   role_policy_arns = {
     secrets = aws_iam_policy.eso_secrets_access.arn
   }
-
-  tags = {
-    Project     = "persons-finder"
-    Environment = "dev"
-  }
 }
 
 # ---------- ECR Repository ----------
@@ -58,9 +58,9 @@ resource "aws_ecr_repository" "app" {
     encryption_type = "KMS"
   }
 
-  tags = {
-    Project     = "persons-finder"
-    Environment = "dev"
+  # Deletion removes all container images — blocks accidental terraform destroy.
+  lifecycle {
+    prevent_destroy = true
   }
 }
 

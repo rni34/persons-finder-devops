@@ -8,7 +8,12 @@ SHELL := /bin/bash
 # ---------- Variables ----------
 IMAGE_NAME ?= persons-finder
 IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "latest")
-ECR_REPO   ?= 637423556985.dkr.ecr.us-east-1.amazonaws.com/$(IMAGE_NAME)
+# Set ECR_REPO from terraform output: ECR_REPO=$$(cd terraform && terraform output -raw ecr_repository_url) make docker-push
+ECR_REPO   ?= $(shell cd terraform && terraform output -raw ecr_repository_url 2>/dev/null || echo "REPLACE_WITH_ECR_URL")
+# Pin Trivy version — :latest is a supply chain risk. Local scan targets mount the
+# Docker socket and full source code; a compromised image could exfiltrate secrets.
+# Update: check https://github.com/aquasecurity/trivy/releases
+TRIVY_IMAGE ?= aquasec/trivy:0.69.1
 
 # ---------- Build ----------
 
@@ -40,15 +45,15 @@ docker-push: ## Push Docker image to ECR
 .PHONY: scan
 scan: docker-build ## Run Trivy security scan on Docker image
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-		aquasec/trivy:latest image --severity CRITICAL,HIGH --ignore-unfixed $(IMAGE_NAME):$(IMAGE_TAG)
+		$(TRIVY_IMAGE) image --severity CRITICAL,HIGH --ignore-unfixed $(IMAGE_NAME):$(IMAGE_TAG)
 
 .PHONY: scan-k8s
 scan-k8s: ## Run Trivy scan on K8s manifests
-	docker run --rm -v $(PWD):/src aquasec/trivy:latest config /src/k8s/
+	docker run --rm -v $(PWD):/src $(TRIVY_IMAGE) config /src/k8s/
 
 .PHONY: scan-tf
 scan-tf: ## Run Trivy scan on Terraform
-	docker run --rm -v $(PWD):/src aquasec/trivy:latest config /src/terraform/
+	docker run --rm -v $(PWD):/src $(TRIVY_IMAGE) config /src/terraform/
 
 # ---------- Kubernetes ----------
 

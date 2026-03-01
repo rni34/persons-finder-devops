@@ -6,3 +6,31 @@ metadata:
     app.kubernetes.io/name: persons-finder
     app.kubernetes.io/part-of: persons-finder
     app.kubernetes.io/managed-by: kubectl
+    # Pod Security Standards — enforce the most restrictive profile.
+    # All pods in this namespace must comply (runAsNonRoot, drop ALL caps, etc.)
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    # Data classification — enables policy enforcement and compliance auditing.
+    # Kyverno/OPA policies can target namespaces by classification level to
+    # enforce stricter controls (e.g., require encryption, block egress).
+    # Auditors can discover PII workloads: kubectl get ns -l data-classification=pii
+    data-classification: pii
+    # ALB pod readiness gate — prevents 502s during rolling updates.
+    # Without this, K8s considers new pods "ready" (readiness probe passes)
+    # before the ALB target group reports them as Healthy. Old pods get
+    # terminated while new pods are still in ALB "Initial" state → no
+    # healthy targets → 502. With this label, the AWS LB Controller injects
+    # a readiness gate condition so pods aren't Ready until ALB confirms.
+    # Requires target-type: ip (already set on ingress).
+    elbv2.k8s.aws/pod-readiness-gate-inject: enabled
+---
+# CIS Kubernetes Benchmark 5.1.5: Disable token automount on the default SA.
+# Prevents accidental API token exposure if a pod is deployed without an
+# explicit serviceAccountName. The app uses a dedicated SA (persons-finder).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: persons-finder
+automountServiceAccountToken: false

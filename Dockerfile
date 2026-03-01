@@ -28,19 +28,22 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN apt-get update && apt-get install -y --no-install-recommends dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
+# CIS Docker Benchmark 4.8: Remove setuid/setgid bits (defense-in-depth)
+# K8s securityContext already blocks privilege escalation, but stripping these
+# from the image protects against misuse outside K8s (local dev, docker-compose)
+RUN find / -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true
+
 # Security: non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 
 # Copy Spring Boot layers in dependency order (best cache utilization)
-COPY --from=builder /app/build/extracted/dependencies/ ./
-COPY --from=builder /app/build/extracted/spring-boot-loader/ ./
-COPY --from=builder /app/build/extracted/snapshot-dependencies/ ./
-COPY --from=builder /app/build/extracted/application/ ./
-
-# Own the app directory
-RUN chown -R appuser:appgroup /app
+# --chown avoids a separate chown layer, reducing image size
+COPY --from=builder --chown=appuser:appgroup /app/build/extracted/dependencies/ ./
+COPY --from=builder --chown=appuser:appgroup /app/build/extracted/spring-boot-loader/ ./
+COPY --from=builder --chown=appuser:appgroup /app/build/extracted/snapshot-dependencies/ ./
+COPY --from=builder --chown=appuser:appgroup /app/build/extracted/application/ ./
 
 USER appuser
 
@@ -48,7 +51,14 @@ EXPOSE 8080
 
 # dumb-init wraps the JVM for proper SIGTERM forwarding
 # JVM tuning: MaxRAMPercentage/InitialRAMPercentage for container-aware memory sizing
+# G1GC: JDK 11 ergonomics selects SerialGC (single-threaded) when container memory < 2GB.
+# With 1Gi limit, this causes high tail latency under concurrent load. Force G1GC explicitly.
+# JMX disabled: monitoring is via Prometheus (ServiceMonitor + /actuator/prometheus).
+# JMX MBean registration is unused overhead — saves ~200-500ms startup and reduces memory.
 ENTRYPOINT ["dumb-init", "--", "java", \
+    "-XX:+UseG1GC", \
     "-XX:MaxRAMPercentage=75.0", \
     "-XX:InitialRAMPercentage=25.0", \
+    "-XX:+ExitOnOutOfMemoryError", \
+    "-Dspring.jmx.enabled=false", \
     "org.springframework.boot.loader.JarLauncher"]

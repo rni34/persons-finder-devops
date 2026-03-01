@@ -1,10 +1,16 @@
 # Local observability stack for persons-finder development.
 # Usage: docker compose -f docker-compose.observability.yml up -d
 # Requires: the app running on localhost:8080 with actuator/prometheus enabled.
+#
+# Image versions pinned for reproducibility and supply chain safety.
+# Update: https://github.com/prometheus/prometheus/releases
+#          https://github.com/grafana/grafana/releases
 
 services:
   prometheus:
-    image: prom/prometheus:v2.51.0
+    # LTS release — receives backported security fixes without feature churn.
+    # v2.51.0 (March 2024) was 2 years behind with no security patches.
+    image: prom/prometheus:v3.5.1
     container_name: pf-prometheus
     ports:
       - "9090:9090"
@@ -17,7 +23,8 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.4.1
+    # v10.4.1 had known CVEs: CVE-2024-9264 (critical SQLi), CVE-2025-4123 (high XSS).
+    image: grafana/grafana:11.6.0
     container_name: pf-grafana
     ports:
       - "3000:3000"

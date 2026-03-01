@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: persons-finder
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: network
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  podSelector: {}  # matches ALL pods in namespace
+  policyTypes:
+    - Ingress
+    - Egress

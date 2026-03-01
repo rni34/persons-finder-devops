@@ -7,6 +7,7 @@ resources:
   - namespace.yaml
   - resource-quota.yaml
   - limit-range.yaml
+  - admission-policy.yaml
   # 2. Secrets and service accounts
   - external-secret.yaml
   # 3. Workloads
@@ -18,8 +19,10 @@ resources:
   - hpa.yaml
   - pdb.yaml
   # 5. Network security
+  - default-deny.yaml
   - network-policy.yaml
   # 6. Monitoring
   - service-monitor.yaml
   - prometheus-rules.yaml
+  - alertmanager-config.yaml
   - grafana-dashboard.yaml

@@ -11,13 +11,13 @@ spec:
   limits:
     - type: Container
       default:
-        cpu: 500m
+        # CPU limit intentionally omitted — avoids CFS throttling on JVM workloads
         memory: 512Mi
       defaultRequest:
         cpu: 100m
         memory: 128Mi
       max:
-        cpu: "2"
+        # CPU max omitted — allows burstable CPU for JIT/GC-heavy workloads
         memory: 4Gi
       min:
         cpu: 50m

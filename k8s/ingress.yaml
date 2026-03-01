@@ -11,11 +11,30 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/healthcheck-port: "8081"
     # TLS termination at ALB using ACM certificate
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}, {"HTTP": 80}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:637423556985:certificate/REPLACE-WITH-CERT-ID"
     alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    # WAF WebACL — blocks OWASP Top 10, SQLi, Log4Shell. Replace ARN after terraform apply.
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-east-1:637423556985:regional/webacl/persons-finder-alb-waf/REPLACE-AFTER-TERRAFORM-APPLY"
+    # Target group performance tuning:
+    # - deregistration_delay=30: Default 300s exceeds pod terminationGracePeriodSeconds (45s),
+    #   causing ALB to route to dead pods → 502s during rolling updates. Aligned to Spring Boot
+    #   graceful shutdown window (30s).
+    # - slow_start=30: New pods need JIT/class-loading warmup. Without it, freshly scaled pods
+    #   receive full traffic immediately, causing latency spikes during first 30s.
+    # - least_outstanding_requests: Default round_robin ignores in-flight request count. This
+    #   app calls an external LLM with 100ms–30s response variance; LOR routes to the pod with
+    #   fewest pending requests, preventing pileup on slow pods.
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30,slow_start.duration_seconds=30,load_balancing.algorithm.type=least_outstanding_requests
+    # ALB access logs — per-request latency, status codes, WAF evaluation time.
+    # Replace bucket name after terraform apply (see: terraform output alb_access_logs_bucket).
+    # HTTP desync protection: drop_invalid_header_fields rejects headers not matching [-A-Za-z0-9]+,
+    # desync_mitigation_mode=strictest rejects all ambiguous requests (default "defensive" allows some).
+    # Both prevent HTTP request smuggling attacks that can bypass WAF rules and reach the app.
+    alb.ingress.kubernetes.io/load-balancer-attributes: access_logs.s3.enabled=true,access_logs.s3.bucket=persons-finder-alb-access-logs-REPLACE-ACCOUNT-ID,access_logs.s3.prefix=alb,routing.http.drop_invalid_header_fields.enabled=true,routing.http.desync_mitigation_mode=strictest
 spec:
   ingressClassName: alb
   rules:

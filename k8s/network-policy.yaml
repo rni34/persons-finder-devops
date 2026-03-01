@@ -15,21 +15,35 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow traffic from ALB ingress controller
+    # Allow app traffic from ALB ingress controller (port 8080 only)
     - ports:
         - port: 8080
           protocol: TCP
-    # Allow Prometheus scraping from monitoring namespace
+    # Allow management port (8081) from monitoring namespace only (Prometheus scraping).
+    # Kubelet probes also use 8081 but are always allowed per K8s spec:
+    # "the only allowed connections into the pod are those from the pod's node
+    # and those allowed by the ingress list" — node traffic bypasses NetworkPolicy.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
-        - port: 8080
+        - port: 8081
           protocol: TCP
   egress:
-    # Allow DNS
-    - ports:
+    # Allow DNS — restricted to CoreDNS pods in kube-system only.
+    # Without a destination selector, DNS egress is open to ANY IP on port 53,
+    # enabling DNS tunneling: a compromised pod encodes data in DNS queries to
+    # an attacker-controlled nameserver, bypassing the HTTPS-only egress rule.
+    # Targeting kube-dns pods ensures DNS queries only reach the cluster resolver.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
         - port: 53
           protocol: UDP
         - port: 53

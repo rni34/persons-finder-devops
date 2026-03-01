@@ -1,0 +1,70 @@
+# AlertmanagerConfig — namespace-scoped alert routing
+# Routes PrometheusRule alerts to Slack (warning) and PagerDuty (critical).
+# Requires prometheus-operator v0.63+ for AlertmanagerConfig v1alpha1.
+#
+# Setup:
+#   kubectl create secret generic alertmanager-slack \
+#     --from-literal=webhook-url='https://hooks.slack.com/services/YOUR/WEBHOOK/URL' \
+#     -n persons-finder
+#   kubectl create secret generic alertmanager-pagerduty \
+#     --from-literal=routing-key='YOUR_PAGERDUTY_INTEGRATION_KEY' \
+#     -n persons-finder
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: persons-finder
+  namespace: persons-finder
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  route:
+    receiver: slack-warning
+    groupBy: [namespace, alertname]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    routes:
+      - receiver: watchdog-deadman
+        matchers:
+          - name: alertname
+            value: Watchdog
+            matchType: "="
+        repeatInterval: 5m
+      - receiver: pagerduty-critical
+        matchers:
+          - name: severity
+            value: critical
+            matchType: "="
+        repeatInterval: 1h
+  receivers:
+    - name: slack-warning
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack
+            key: webhook-url
+          channel: "#persons-finder-alerts"
+          sendResolved: true
+          title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+          text: >-
+            {{ range .Alerts }}
+            *{{ .Labels.alertname }}* ({{ .Labels.severity }})
+            {{ .Annotations.description }}
+            {{ end }}
+    - name: pagerduty-critical
+      pagerdutyConfigs:
+        - routingKey:
+            name: alertmanager-pagerduty
+            key: routing-key
+          sendResolved: true
+          description: '{{ .CommonLabels.alertname }}: {{ .CommonAnnotations.summary }}'
+          severity: '{{ if eq .CommonLabels.severity "critical" }}critical{{ else }}warning{{ end }}'
+    # Watchdog receiver — forwards the always-firing Watchdog alert to a dead man's
+    # snitch service. If the service stops receiving, it pages on-call.
+    # Replace URL with your Deadman's Snitch, PagerDuty heartbeat, or Healthchecks.io endpoint.
+    - name: watchdog-deadman
+      webhookConfigs:
+        - url: "https://nosnch.in/YOUR_SNITCH_TOKEN"
+          sendResolved: false

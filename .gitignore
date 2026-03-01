@@ -36,9 +36,36 @@ terraform/.terraform/
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/tfplan
+terraform/*.tfvars
+terraform/*.tfvars.json
+!terraform/terraform.tfvars.example
+terraform/override.tf
+terraform/override.tf.json
+terraform/*_override.tf
+terraform/*_override.tf.json
+terraform/crash.log
+terraform/crash.*.log
 
 # Docker
 *.tar
+
+# Environment files (may contain OPENAI_API_KEY or other secrets)
+.env
+.env.*
+!.env.example
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.jks
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Ralph loop logs
+.ralph-logs/
 
 # OS
 .DS_Store

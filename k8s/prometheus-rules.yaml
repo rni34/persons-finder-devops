@@ -44,6 +44,18 @@ spec:
             summary: "High HTTP 5xx error rate"
             description: "More than 5% of requests are returning 5xx errors."
 
+        - alert: HighP99Latency
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_server_requests_seconds_bucket{namespace="persons-finder"}[5m])) by (le)
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High p99 request latency"
+            description: "p99 latency is {{ $value | humanizeDuration }} (threshold: 2s) for 5 minutes."
+
         - alert: HighMemoryUsage
           expr: |
             jvm_memory_used_bytes{namespace="persons-finder",area="heap"}
@@ -56,3 +68,36 @@ spec:
           annotations:
             summary: "High JVM heap usage"
             description: "JVM heap usage on {{ $labels.pod }} is above 80% for 10 minutes."
+
+        - alert: HPAAtMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="persons-finder"}
+            ==
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace="persons-finder"}
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "HPA at maximum replicas"
+            description: "HPA {{ $labels.horizontalpodautoscaler }} has been at max replicas ({{ $value }}) for 15 minutes. The application cannot scale further to meet demand."
+
+        - alert: ContainerOOMKilled
+          expr: |
+            increase(kube_pod_container_status_last_terminated_reason{namespace="persons-finder", reason="OOMKilled"}[5m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Container OOMKilled"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} was OOMKilled. Current memory limit may be insufficient or there is a memory leak."
+
+        # Dead man's switch — always fires while Prometheus is healthy.
+        # Route to a receiver that detects absence (e.g., PagerDuty, Deadman's Snitch).
+        # If this alert stops firing, Prometheus or Alertmanager is down.
+        - alert: Watchdog
+          expr: vector(1)
+          labels:
+            severity: none
+          annotations:
+            summary: "Watchdog (dead man's switch)"
+            description: "This alert always fires. If it stops, Prometheus or Alertmanager is down."

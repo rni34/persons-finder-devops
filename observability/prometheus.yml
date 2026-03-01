@@ -6,6 +6,9 @@ scrape_configs:
   - job_name: "persons-finder"
     metrics_path: /actuator/prometheus
     static_configs:
+      # Local dev: actuator serves on default port 8080 (no MANAGEMENT_SERVER_PORT env var).
+      # In K8s, actuator is on port 8081 to prevent internet exposure via ALB — but locally
+      # there's no ALB, so port separation is unnecessary.
       - targets: ["host.docker.internal:8080"]
         labels:
           namespace: "persons-finder"

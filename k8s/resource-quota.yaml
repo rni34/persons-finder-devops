@@ -11,6 +11,7 @@ spec:
   hard:
     requests.cpu: "4"
     requests.memory: 8Gi
-    limits.cpu: "8"
+    # CPU limits intentionally omitted — aligns with ADR-0001 (no CPU limits for JVM).
+    # LimitRange also omits default CPU limit. Only memory limits are enforced.
     limits.memory: 16Gi
     pods: "20"

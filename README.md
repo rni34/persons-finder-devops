@@ -63,3 +63,63 @@ Submit your repository link. We care about:
 *   **Security:** How you handle the API Key.
 *   **Reliability:** Probes, Limits, Scaling.
 *   **AI Maturity:** Your `AI_LOG.md` (Did you blindly trust the bot, or did you engineer it?).
+
+---
+
+## 🏗️ Solution Overview
+
+### Repository Structure
+
+```
+├── Dockerfile                  # Multi-stage build, non-root, JRE-slim, G1GC, dumb-init
+├── Makefile                    # build, test, docker-build, scan, deploy, monitoring-up
+├── k8s/                        # Kubernetes manifests (Kustomize)
+│   ├── kustomization.yaml      # Apply order: namespace → secrets → workloads → scaling → network → monitoring
+│   ├── namespace.yaml          # Pod Security Standards (restricted), data-classification: pii
+│   ├── deployment.yaml         # Probes, seccomp, topology spread, graceful shutdown
+│   ├── hpa.yaml                # CPU-based autoscaling (2–10 replicas)
+│   ├── pdb.yaml                # maxUnavailable: 1
+│   ├── external-secret.yaml    # ESO → AWS Secrets Manager for OPENAI_API_KEY
+│   ├── admission-policy.yaml    # ValidatingAdmissionPolicy: restrict images to ECR in PII namespaces
+│   ├── network-policy.yaml     # Ingress: ALB (8080) + monitoring (8081); egress: DNS + HTTPS
+│   ├── default-deny.yaml       # Default-deny ingress/egress baseline
+│   ├── prometheus-rules.yaml   # Four golden signals + OOM/HPA alerts + watchdog
+│   └── ...                     # limit-range, resource-quota, ingress, service, grafana, alertmanager
+├── terraform/                  # EKS, VPC, ECR, Secrets Manager, WAF, GuardDuty, monitoring
+├── .github/
+│   ├── workflows/ci.yaml       # Build → scan → SBOM → Terraform validate → AI review → ECR push
+│   ├── dependabot.yml          # Gradle, Docker, GitHub Actions, Terraform ecosystems
+│   └── CODEOWNERS              # Required review for infra and security-sensitive files
+├── observability/              # Local Prometheus + Grafana (docker-compose)
+└── docs/adr/                   # ADRs: no CPU limits, PDB strategy, subnet sizing
+```
+
+### Quick Start
+
+```bash
+make help              # Show all available commands
+make build             # Build the app
+make docker-build      # Build container image
+make scan              # Trivy security scan
+make deploy            # kubectl apply -k k8s/
+make monitoring-up     # Local Prometheus + Grafana
+```
+
+### Key Documentation
+
+| Document | Contents |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | PII redaction sidecar design, threat model, Presidio + Bedrock Guardrails |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step EKS deployment (Terraform → ECR → K8s) |
+| [SECURITY.md](SECURITY.md) | Security controls inventory and compliance mapping |
+| [RUNBOOK.md](RUNBOOK.md) | Incident response, scaling, upgrades, disaster recovery |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common failure modes and debugging commands |
+| [AI_LOG.md](AI_LOG.md) | AI collaboration log — prompts, flaws found, fixes applied |
+| [docs/adr/](docs/adr/) | Architecture Decision Records (no CPU limits, PDB strategy, subnet sizing) |
+
+### Key Design Decisions
+
+- **No CPU limits** on JVM pods — CFS throttling causes latency spikes during GC/JIT ([ADR-0001](docs/adr/0001-no-cpu-limits-jvm.md))
+- **Secrets via ESO** — External Secrets Operator syncs from AWS Secrets Manager; no secrets in git or images
+- **Defense-in-depth networking** — default-deny + app-specific egress + Cilium FQDN policy (documented)
+- **Fail-closed PII redaction** — Presidio sidecar architecture where iptables redirect ensures bypass is impossible

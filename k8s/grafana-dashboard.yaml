@@ -176,6 +176,36 @@ data:
             "legendFormat": "{{ pod }}"
           }],
           "fieldConfig": { "defaults": { "unit": "bytes" } }
+        },
+        {
+          "title": "Memory Saturation (% of Limit)",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 28 },
+          "targets": [{
+            "expr": "100 * container_memory_working_set_bytes{namespace=\"$namespace\",container=\"persons-finder\"} / on(pod) kube_pod_container_resource_limits{namespace=\"$namespace\",container=\"persons-finder\",resource=\"memory\"}",
+            "legendFormat": "{{ pod }}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 80}, {"color": "red", "value": 90}] }, "custom": { "fillOpacity": 10, "thresholdsStyle": { "mode": "line" } } } }
+        },
+        {
+          "title": "HPA Replica Count",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 28 },
+          "targets": [
+            {
+              "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"$namespace\",horizontalpodautoscaler=\"persons-finder\"}",
+              "legendFormat": "Current"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_status_desired_replicas{namespace=\"$namespace\",horizontalpodautoscaler=\"persons-finder\"}",
+              "legendFormat": "Desired"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"$namespace\",horizontalpodautoscaler=\"persons-finder\"}",
+              "legendFormat": "Max"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 5 } } }
         }
       ],
       "schemaVersion": 39,

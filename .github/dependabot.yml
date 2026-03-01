@@ -1,0 +1,53 @@
+# Automated dependency updates — security patches and version bumps
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+#
+# KNOWN GAP: Helm chart versions in Terraform HCL (helm_release resources) are NOT
+# monitored by Dependabot. The "terraform" ecosystem only tracks provider and module
+# versions, not Helm chart version strings. Charts to check manually:
+#   - metrics-server (terraform/addons.tf)
+#   - aws-load-balancer-controller (terraform/addons.tf)
+#   - kube-prometheus-stack (terraform/monitoring.tf)
+#   - external-secrets (terraform/addons.tf)
+# To automate: migrate to Renovate, which supports Helm chart version detection in HCL.
+version: 2
+updates:
+  # Gradle dependencies (Spring Boot, Kotlin, etc.)
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "java"]
+    groups:
+      spring:
+        patterns: ["org.springframework*"]
+      kotlin:
+        patterns: ["org.jetbrains.kotlin*"]
+
+  # Dockerfile base images (eclipse-temurin)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+
+  # GitHub Actions versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "ci"]
+
+  # Terraform providers and modules
+  - package-ecosystem: terraform
+    directory: /terraform
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]

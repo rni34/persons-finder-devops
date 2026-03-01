@@ -1,0 +1,145 @@
+# ValidatingAdmissionPolicy — restrict container images to ECR registries.
+# Built-in K8s 1.30+ feature (GA) — no Kyverno/OPA infrastructure required.
+#
+# Why: Without registry restriction, anyone with deploy access can create a
+# workload using a Docker Hub or attacker-controlled image, bypassing ECR's
+# scan-on-push, immutable tags, and KMS encryption. For a PII-handling app,
+# this is a supply chain risk — unscanned images may contain malware or CVEs.
+#
+# Coverage: All workload types that carry a pod template (Deployments,
+# StatefulSets, DaemonSets, ReplicaSets, Jobs) plus bare Pods plus
+# ephemeral containers (kubectl debug). CronJobs are covered indirectly —
+# the CronJob controller creates Jobs, which are validated at CREATE time
+# by the templated-workloads policy.
+#
+# Scope: Applied to namespaces with data-classification=pii label via the
+# binding's namespaceSelector. System namespaces (kube-system, monitoring)
+# are unaffected — they use Helm-managed images from upstream registries.
+
+# --- Policy 1: Templated workloads (spec.template.spec.containers) ---
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-ecr-images
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: governance
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs"]
+  validations:
+    - expression: "object.spec.template.spec.containers.all(c, c.image.matches('^[0-9]+[.]dkr[.]ecr[.][a-z0-9-]+[.]amazonaws[.]com/.+'))"
+      message: "All container images must come from an ECR registry (<account>.dkr.ecr.<region>.amazonaws.com/). Non-ECR images bypass scan-on-push and immutable tag controls."
+    - expression: "!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c, c.image.matches('^[0-9]+[.]dkr[.]ecr[.][a-z0-9-]+[.]amazonaws[.]com/.+'))"
+      message: "All init container images must come from an ECR registry."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: restrict-ecr-images-pii
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: governance
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  policyName: restrict-ecr-images
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        data-classification: pii
+
+# --- Policy 2: Bare Pods (spec.containers — no template wrapper) ---
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-ecr-images-pods
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: governance
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  validations:
+    - expression: "object.spec.containers.all(c, c.image.matches('^[0-9]+[.]dkr[.]ecr[.][a-z0-9-]+[.]amazonaws[.]com/.+'))"
+      message: "All container images must come from an ECR registry."
+    - expression: "!has(object.spec.initContainers) || object.spec.initContainers.all(c, c.image.matches('^[0-9]+[.]dkr[.]ecr[.][a-z0-9-]+[.]amazonaws[.]com/.+'))"
+      message: "All init container images must come from an ECR registry."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: restrict-ecr-images-pods-pii
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: governance
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  policyName: restrict-ecr-images-pods
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        data-classification: pii
+
+# --- Policy 3: Ephemeral containers (kubectl debug) ---
+# Ephemeral containers are added via PATCH to pods/ephemeralcontainers
+# subresource, which is NOT matched by the bare pods policy (CREATE/UPDATE
+# on pods). Without this, `kubectl debug` can attach a non-ECR image to a
+# running pod in the PII namespace — bypassing scan-on-push and immutable
+# tag controls. The full Pod object is sent in the admission request, so
+# object.spec.ephemeralContainers is accessible.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-ecr-images-ephemeral
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: governance
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["UPDATE"]
+        resources: ["pods/ephemeralcontainers"]
+  validations:
+    - expression: "!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, c.image.matches('^[0-9]+[.]dkr[.]ecr[.][a-z0-9-]+[.]amazonaws[.]com/.+'))"
+      message: "All ephemeral container images must come from an ECR registry. Use ECR-hosted debug images for kubectl debug in PII namespaces."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: restrict-ecr-images-ephemeral-pii
+  labels:
+    app.kubernetes.io/name: persons-finder
+    app.kubernetes.io/component: governance
+    app.kubernetes.io/part-of: persons-finder
+spec:
+  policyName: restrict-ecr-images-ephemeral
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        data-classification: pii

@@ -1,6 +1,29 @@
-# Require review for infrastructure and security-sensitive files
+# Require review for infrastructure and security-sensitive files.
+# Per GitHub Well-Architected SE:07 and kusari.dev security review guidance,
+# CODEOWNERS should cover all files where unreviewed changes could introduce
+# security vulnerabilities, leak secrets, or misdirect incident responders.
+
+# Infrastructure as Code
 terraform/       @hakunishikawa
 k8s/             @hakunishikawa
+
+# CI/CD and GitHub config
 .github/         @hakunishikawa
+
+# Container build — changes affect image security posture
 Dockerfile       @hakunishikawa
+.dockerignore    @hakunishikawa
+
+# Build/deploy commands — malicious changes could exfiltrate secrets
+Makefile         @hakunishikawa
+docker-compose.observability.yml @hakunishikawa
+
+# Security-sensitive documentation — changes could hide vulnerabilities,
+# introduce backdoor deployment steps, or misdirect incident responders
 ARCHITECTURE.md  @hakunishikawa
+SECURITY.md      @hakunishikawa
+DEPLOYMENT.md    @hakunishikawa
+RUNBOOK.md       @hakunishikawa
+
+# Git/editor config — removing .gitignore patterns could commit secrets
+.gitignore       @hakunishikawa

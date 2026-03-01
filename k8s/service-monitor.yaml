@@ -13,6 +13,6 @@ spec:
     matchLabels:
       app: persons-finder
   endpoints:
-    - port: http
+    - port: management
       path: /actuator/prometheus
       interval: 15s

@@ -1,12 +1,43 @@
+# Version control
 .git
 .gitignore
+
+# IDE
 .idea
+
+# Build artifacts (Dockerfile rebuilds from source)
 .gradle
 build
+
+# Documentation (not needed in build context)
 *.md
 !README.md
 LICENSE
-docker-compose*.yml
+docs/
+
+# Infrastructure (not needed in build context)
 terraform/
 k8s/
 .github/
+observability/
+docker-compose*.yml
+Makefile
+
+# Secrets — CRITICAL: Docker build context is independent of .gitignore.
+# A local .env with OPENAI_API_KEY would be sent to the Docker daemon.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+kubeconfig
+*.kubeconfig
+
+# Ralph loop artifacts
+specs/
+ralph.sh
+BUILD_PROMPT.md
+IMPLEMENTATION_PLAN.md
+.ralph-logs/
+.ralph-*.log
